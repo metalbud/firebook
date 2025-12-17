@@ -1,0 +1,936 @@
+const {
+  llm_response_format,
+  recipe_list_response_format,
+} = require("./llm_response_format");
+const express = require("express");
+const bodyParser = require("body-parser");
+const mariadb = require("mariadb");
+const jwt = require("jsonwebtoken"); // NEW CODE
+const bcrypt = require("bcrypt"); // NEW CODE
+require("dotenv").config();
+const cors = require("cors");
+const allowedOrigins = ["https://firebook.app", "https://www.firebook.app"];
+const rateLimit = require("express-rate-limit");
+const path = require("path");
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+app.use(
+  bodyParser.json(),
+  cors({
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true,
+  })
+);
+
+app.set("trust proxy", 1);
+
+// JWT secret key (use a strong secret via .env in production)
+const JWT_SECRET = process.env.JWT_SECRET;
+
+const pool = mariadb.createPool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  connectionLimit: 5,
+});
+
+// Limit each IP to 100 requests per 15 minutes
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: {
+    error: "Too many requests, please try again later.",
+  },
+});
+const llmLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 7, // limit each IP to 5 requests per windowMs
+  message: {
+    error: "Too many requests, please try again later.",
+  },
+});
+
+const awardFlamesToUser = async (user_id, award) => {
+  try {
+    const conn = await pool.getConnection();
+    await conn.query("UPDATE users SET flames = flames + ? WHERE id = ?", [
+      award,
+      user_id,
+    ]);
+    conn.release();
+    console.log(`🔥 Awarded ${award} flames to user ${user_id}`);
+  } catch (err) {
+    console.error("Error awarding flames:", err);
+  }
+};
+
+const checkAndAwardStreakFlames = async (user_id, lastLogin, streakDays) => {
+  try {
+    // ✅ Helper function to format local dates as 'YYYY-MM-DD'
+    const getLocalDateStr = (date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
+    // ✅ Normalize lastLogin to 'YYYY-MM-DD' format
+    const normalizeDate = (dateStr) => {
+      const date = new Date(dateStr);
+      return getLocalDateStr(date);
+    };
+
+    // ✅ Get today's date in local time
+    const today = new Date();
+    const todayStr = getLocalDateStr(today);
+
+    // ✅ Normalize lastLogin for comparison
+    const normalizedLastLogin = normalizeDate(lastLogin);
+
+    // ✅ Log time variables for debugging
+    console.log(`🕒 Debugging Time Variables:`);
+    console.log(`- User ID: ${user_id}`);
+    console.log(`- Last Login (from DB): ${lastLogin}`);
+    console.log(`- Normalized Last Login: ${normalizedLastLogin}`);
+    console.log(`- Today (local): ${todayStr}`);
+    console.log(`- Current Time (local): ${today.toLocaleString()}`);
+    console.log(`- Current Time (UTC): ${today.toISOString()}`);
+
+    // ✅ Prevent awarding flames if last_login is already today
+    if (normalizedLastLogin === todayStr) {
+      console.log(`✅ User ${user_id} already received streak flames today.`);
+      return { flamesAwarded: 0, streakDays };
+    }
+
+    // ✅ Calculate yesterday's date in local time
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    const yesterdayStr = getLocalDateStr(yesterday);
+
+    // ✅ Log yesterday's date for debugging
+    console.log(`- Yesterday (local): ${yesterdayStr}`);
+
+    // ✅ Determine new streak days
+    let newStreakDays =
+      normalizedLastLogin === yesterdayStr ? streakDays + 1 : 1;
+
+    // ✅ Log streak calculation for debugging
+    console.log(`- New Streak Days: ${newStreakDays}`);
+
+    // ✅ Award bonus flames based on streak length
+    let dailyBonus = 1;
+    let streakBonus = 0;
+
+    if (newStreakDays % 7 === 0) streakBonus = 5; // Weekly bonus
+    if (newStreakDays % 30 === 0) streakBonus = 9; // Monthly bonus
+
+    const totalFlamesAwarded = dailyBonus + streakBonus;
+
+    // ✅ Log flame calculation for debugging
+    console.log(`- Daily Bonus: ${dailyBonus}`);
+    console.log(`- Streak Bonus: ${streakBonus}`);
+    console.log(`- Total Flames Awarded: ${totalFlamesAwarded}`);
+
+    // ✅ Update user flames and streak days
+    const conn = await pool.getConnection();
+    await conn.query(
+      "UPDATE users SET flames = flames + ?, streak_days = ? WHERE id = ?",
+      [totalFlamesAwarded, newStreakDays, user_id]
+    );
+
+    // ✅ Update last_login to today
+    await conn.query("UPDATE users SET last_login = ? WHERE id = ?", [
+      todayStr,
+      user_id,
+    ]);
+
+    conn.release();
+
+    console.log(
+      `🔥 Awarded ${totalFlamesAwarded} flames to user ${user_id} (Streak: ${newStreakDays} days)`
+    );
+
+    return { flamesAwarded: totalFlamesAwarded, streakDays: newStreakDays };
+  } catch (err) {
+    console.error("❌ Error checking and awarding streak flames:", err);
+    console.error(`- User ID: ${user_id}`);
+    console.error(`- Last Login: ${lastLogin}`);
+    console.error(`- Streak Days: ${streakDays}`);
+    return { flamesAwarded: 0, streakDays };
+  }
+};
+function authorizeRole(...allowedRoles) {
+  return (req, res, next) => {
+    // If user is not set by authenticateToken or role is not in the allowed list
+    if (!req.user || !allowedRoles.includes(req.user.role)) {
+      return res
+        .status(403)
+        .json({ error: "Forbidden: insufficient permissions." });
+    }
+    next();
+  };
+}
+
+/* 
+|--------------------------------------------------------------------------
+| Authentication Middleware
+|--------------------------------------------------------------------------
+| We'll create a middleware function to verify the JWT on protected routes.
+*/
+function authenticateToken(req, res, next) {
+  // Conventionally, tokens are passed in the Authorization header as Bearer tokens
+  const authHeader = req.headers["authorization"];
+  if (!authHeader) {
+    return res.status(401).json({ error: "No token provided." });
+  }
+
+  const token = authHeader.split(" ")[1]; // e.g., "Bearer <token>"
+  if (!token) {
+    return res.status(401).json({ error: "Invalid token format." });
+  }
+
+  // Verify the token
+  jwt.verify(token, JWT_SECRET, (err, userData) => {
+    if (err) {
+      return res.status(403).json({ error: "Failed to authenticate token." });
+    }
+    // If token is valid, attach userData (e.g., { user_id }) to request
+    req.user = userData;
+    next();
+  });
+}
+
+/* 
+|--------------------------------------------------------------------------
+| Signup Route
+|--------------------------------------------------------------------------
+| Creates a new user, hashing the password and storing it in DB.
+| Then returns a token so they're immediately authenticated.
+*/
+app.post("/signup", limiter, async (req, res) => {
+  const { username, email, password } = req.body;
+
+  if (!username || !email || !password) {
+    return res.status(400).json({ error: "Missing required fields." });
+  }
+
+  let conn;
+  try {
+    conn = await pool.getConnection();
+
+    // Check if user already exists
+    const existingUsers = await conn.query(
+      "SELECT id FROM users WHERE username = ? OR email = ?",
+      [username, email]
+    );
+
+    // Ensure existingUsers is an array before checking length
+    if (Array.isArray(existingUsers) && existingUsers.length > 0) {
+      return res
+        .status(409)
+        .json({ error: "User with that username or email already exists." });
+    }
+
+    // Hash the password
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+
+    // Insert new user
+    const result = await conn.query(
+      "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)",
+      [username, email, passwordHash]
+    );
+
+    // Get the new user ID
+    const userId = Number(result.insertId);
+
+    // Create a JWT token
+    const token = jwt.sign({ user_id: userId, role: "user" }, JWT_SECRET, {
+      expiresIn: "1h",
+    });
+
+    res.status(201).json({
+      message: "User created successfully.",
+      token, // Return JWT
+    });
+  } catch (err) {
+    console.error("Error creating user:", err);
+    res.status(500).json({ error: "Failed to create user." });
+  } finally {
+    if (conn) conn.release();
+  }
+});
+
+/* 
+|--------------------------------------------------------------------------
+| Login Route
+|--------------------------------------------------------------------------
+| Verifies user credentials, returns a JWT if successful.
+*/
+app.post("/login", limiter, async (req, res) => {
+  const { email, password, rememberMe } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: "Missing email or password." });
+  }
+
+  try {
+    const conn = await pool.getConnection();
+    const rows = await conn.query("SELECT * FROM users WHERE email = ?", [
+      email,
+    ]);
+
+    if (rows.length === 0) {
+      conn.release();
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
+
+    const user = rows[0];
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+    if (!isMatch) {
+      conn.release();
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
+
+    const expiresIn = rememberMe ? "7d" : "1h";
+    const token = jwt.sign({ user_id: user.id, role: user.role }, JWT_SECRET, {
+      expiresIn,
+    });
+
+    // ✅ Update last login timestamp
+    await conn.query(
+      "UPDATE users SET last_login = CURRENT_DATE WHERE id = ?",
+      [user.id]
+    );
+    conn.release();
+
+    console.log(`✅ User ${user.id} logged in successfully.`);
+
+    res.status(200).json({
+      message: "Logged in successfully.",
+      token,
+      expiresIn,
+    });
+  } catch (err) {
+    console.error("Error logging in:", err);
+    res.status(500).json({ error: "Failed to log in." });
+  }
+});
+
+app.get("/me", authenticateToken, async (req, res) => {
+  try {
+    console.log("✅ Authenticated user:", req.user);
+
+    if (!req.user || !req.user.user_id) {
+      console.error("❌ Missing user ID in token.");
+      return res.status(401).json({ error: "Invalid user token." });
+    }
+
+    const conn = await pool.getConnection();
+    const userQuery = `
+      SELECT id, username, email, flames, level, streak_days, last_login, total_recipes_saved, badges 
+      FROM users WHERE id = ?`;
+    const [user] = await conn.query(userQuery, [req.user.user_id]);
+
+    if (!user) {
+      console.error(
+        "❌ User not found in database. User ID:",
+        req.user.user_id
+      );
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    // ✅ Call streak function to check & award flames
+    console.log(user.id + user.last_login);
+
+    const { flamesAwarded, streakDays } = await checkAndAwardStreakFlames(
+      user.id,
+      user.last_login,
+      user.streak_days
+    );
+
+    conn.release();
+
+    res.status(200).json({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      flames: user.flames + flamesAwarded, // ✅ Updated flames
+      level: user.level,
+      streakDays, // ✅ Updated streak days
+      totalRecipesSaved: user.total_recipes_saved,
+      badges: JSON.parse(user.badges || "[]"),
+      flamesAwarded,
+    });
+  } catch (err) {
+    console.error("❌ Database Error fetching user data:", err);
+    res.status(500).json({ error: "Failed to fetch user data." });
+  }
+});
+
+/* 
+|--------------------------------------------------------------------------
+|  Protected Route - /save-recipe
+|--------------------------------------------------------------------------
+| We'll now protect the /save-recipe route so only logged-in users
+| (who provide a valid JWT) can save a recipe.
+*/
+app.post("/save-recipe", authenticateToken, async (req, res) => {
+  const {
+    title,
+    description,
+    category,
+    ingredients,
+    instructions,
+    nutritional_info,
+  } = req.body;
+
+  console.log("🔹 Incoming Save Request:", req.body);
+
+  if (!req.user || !req.user.user_id) {
+    console.error("❌ Unauthorized request: User ID missing");
+    return res.status(401).json({ error: "Unauthorized: User ID missing." });
+  }
+
+  const created_by_user_id = req.user.user_id;
+  console.log(`🔹 User ID: ${created_by_user_id}`);
+
+  if (!title || !description || !ingredients || !instructions) {
+    console.error("❌ Missing required recipe fields");
+    return res.status(400).json({ error: "Missing required recipe fields." });
+  }
+
+  const conn = await pool.getConnection();
+
+  try {
+    // ✅ Check if the user already saved this recipe
+    const existingRecipe = await conn.query(
+      "SELECT id FROM recipes WHERE title = ? AND created_by_user_id = ?",
+      [title, created_by_user_id]
+    );
+
+    if (existingRecipe.length > 0) {
+      conn.release();
+      console.log(`⚠️ User ${created_by_user_id} already saved this recipe.`);
+      return res.status(409).json({ error: "Recipe already saved." });
+    }
+
+    // ✅ Insert new recipe
+    const query = `
+      INSERT INTO recipes (title, description, category, ingredients, instructions, nutritional_info, created_by_user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    const queryParams = [
+      title,
+      description,
+      category,
+      JSON.stringify(ingredients),
+      JSON.stringify(instructions),
+      JSON.stringify(nutritional_info),
+      created_by_user_id,
+    ];
+
+    const result = await conn.query(query, queryParams);
+    const recipeId = Number(result.insertId);
+
+    console.log(`✅ Recipe saved successfully! Recipe ID: ${recipeId}`);
+
+    // ✅ Award flames after successfully saving
+    const flamesEarned = 2;
+    await awardFlamesToUser(created_by_user_id, flamesEarned);
+    console.log(
+      `🔥 Awarded ${flamesEarned} flames to user ${created_by_user_id}`
+    );
+
+    // ✅ Increment total recipes saved by user
+    await conn.query(
+      "UPDATE users SET total_recipes_saved = total_recipes_saved + 1 WHERE id = ?",
+      [created_by_user_id]
+    );
+    console.log(
+      `📊 Updated total recipes saved for user ${created_by_user_id}`
+    );
+
+    conn.release();
+
+    res.status(200).json({
+      message: "Recipe saved successfully!",
+      recipeId,
+      flamesEarned, // ✅ Correct flames awarded in response
+      totalRecipesSaved: "+1", // ✅ Confirm 1 new recipe added
+    });
+  } catch (err) {
+    console.error("❌ Database Error:", err);
+    console.error(`SQL Error Code: ${err.code}, Message: ${err.sqlMessage}`);
+
+    res.status(500).json({
+      error: "Failed to save recipe.",
+      details: err.sqlMessage,
+    });
+  }
+});
+/* 
+|--------------------------------------------------------------------------
+| 5. Public Routes (no token needed)
+|--------------------------------------------------------------------------
+| For routes that don't require user authentication, you can leave them open.
+*/
+app.get("/random-recipes", async (req, res) => {
+  console.log("triggered /random-recipes");
+  const limit = req.query.limit || 5; // Number of random recipes to return (default: 5)
+  const query = `SELECT * FROM recipes ORDER BY RAND() LIMIT ?`;
+
+  try {
+    const conn = await pool.getConnection();
+    const rows = await conn.query(query, [parseInt(limit)]);
+    conn.release();
+
+    res.status(200).json({ recipes: rows });
+  } catch (err) {
+    console.error("Error fetching random recipes:", err);
+    res.status(500).json({ error: "Failed to fetch random recipes." });
+  }
+});
+
+app.post("/suggested-recipes", llmLimiter, async (req, res) => {
+  console.log("triggered /suggested-recipes");
+  const { prompt } = req.body;
+  if (!prompt) {
+    return res.status(400).json({ error: "Missing prompt in request body." });
+  }
+
+  try {
+    const response = await fetch(process.env.OPENAI_API_BASE_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a culinary assistant. Provide a list of recipes in JSON format.",
+          },
+          {
+            role: "user",
+            content: `Generate a list of recipes for: ${prompt}`,
+          },
+        ],
+        response_format: recipe_list_response_format,
+        max_tokens: 500,
+      }),
+    });
+
+    const data = await response.json();
+    const recipes = JSON.parse(data.choices[0].message.content); // Parse the string content to JSON
+    res.json(recipes); // Send the parsed JSON directly
+  } catch (error) {
+    console.error("Error fetching recipes:", error);
+    res.status(500).json({ error: "Failed to fetch recipes." });
+  }
+});
+
+app.post("/subscribe", async (req, res) => {
+  const { email } = req.body;
+
+  if (!email || !email.includes("@")) {
+    return res.status(400).json({ error: "Invalid email address." });
+  }
+
+  try {
+    const conn = await pool.getConnection();
+    const result = await conn.query(
+      "INSERT INTO subscribers (email) VALUES (?)",
+      [email]
+    );
+    conn.release();
+
+    res.status(201).json({ message: "Successfully subscribed!" });
+  } catch (err) {
+    console.error("Error subscribing email:", err);
+    res
+      .status(500)
+      .json({ error: "Failed to subscribe. Please try again later." });
+  }
+});
+
+app.get("/firebook_alpha", (req, res) => {
+  const apkPath = path.join(__dirname, "public", "firebook_alpha.apk"); // Adjust the path if needed
+  res.download(apkPath, "firebook_alpha.apk", (err) => {
+    if (err) {
+      console.error("Error while downloading APK:", err);
+      res.status(500).send("Could not download the APK.");
+    }
+  });
+});
+
+app.post("/fetch-recipe-details", async (req, res) => {
+  console.log("Running fetch-recipe-details");
+  const { recipeTitle } = req.body;
+
+  if (!recipeTitle) {
+    console.log("Error: Recipe title is missing");
+    return res.status(400).json({ error: "Recipe title is required" });
+  }
+
+  try {
+    const response = await fetch(process.env.OPENAI_API_BASE_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a culinary expert. Provide a detailed recipe in JSON format with structured ingredients (name, amount, amount_metric) based on the user prompt.",
+          },
+          {
+            role: "user",
+            content: `Provide a detailed recipe for: ${recipeTitle}`,
+          },
+        ],
+        response_format: llm_response_format,
+        max_tokens: 1000,
+      }),
+    });
+
+    const data = await response.json();
+
+    let rawContent = data.choices[0]?.message?.content?.trim();
+
+    if (!rawContent) {
+      console.error("No valid response from OpenAI.");
+      return res
+        .status(500)
+        .json({ error: "Invalid response from OpenAI API" });
+    }
+
+    if (rawContent.startsWith("```")) {
+      rawContent = rawContent.replace(/^```[a-z]*\n/, "").replace(/```$/, "");
+    }
+
+    let parsedContent;
+    try {
+      parsedContent = JSON.parse(rawContent);
+    } catch (parseError) {
+      console.error("Error parsing JSON response:", parseError);
+      return res.status(500).json({ error: "Failed to parse recipe details" });
+    }
+
+    if (Array.isArray(parsedContent.recipe_data?.ingredients)) {
+      parsedContent.recipe_data.ingredients =
+        parsedContent.recipe_data.ingredients
+          .map((ingredient) => {
+            if (
+              typeof ingredient === "object" &&
+              ingredient.name &&
+              ingredient.amount &&
+              ingredient.amount_metric
+            ) {
+              return {
+                name: ingredient.name.trim(),
+                amount: ingredient.amount.trim(),
+                amount_metric: ingredient.amount_metric.trim(),
+              };
+            } else {
+              console.warn(
+                "❌ Unexpected ingredient format - Skipping:",
+                JSON.stringify(ingredient, null, 2)
+              );
+              return null; // Skip incorrectly formatted ingredients
+            }
+          })
+          .filter(Boolean); // Remove any null entries
+    } else {
+      console.error(
+        "❌ Invalid ingredients format:",
+        JSON.stringify(parsedContent.recipe_data?.ingredients, null, 2)
+      );
+      parsedContent.recipe_data.ingredients = [];
+    }
+    console.log(parsedContent);
+    res.json(parsedContent);
+  } catch (error) {
+    console.error("Error fetching recipe details:", error);
+    res.status(500).json({ error: "Failed to fetch recipe details" });
+  }
+});
+
+app.post("/get-saved-recipe", async (req, res) => {
+  const { recipeId, recipeTitle } = req.body;
+
+  if (!recipeId && !recipeTitle) {
+    console.log("❌ No recipe identifier provided");
+    return res
+      .status(400)
+      .json({ error: "Either recipeId or recipeTitle is required" });
+  }
+
+  try {
+    const conn = await pool.getConnection();
+    let recipes;
+    if (recipeId) {
+      console.log(`🔍 Querying database for recipe with id: ${recipeId}`);
+      recipes = await conn.query("SELECT * FROM recipes WHERE id = ?", [
+        recipeId,
+      ]);
+    } else {
+      console.log(
+        `🔍 Querying database for recipe with title: "${recipeTitle}"`
+      );
+      recipes = await conn.query("SELECT * FROM recipes WHERE title = ?", [
+        recipeTitle,
+      ]);
+    }
+
+    conn.release();
+
+    if (!recipes || recipes.length === 0) {
+      console.log(`❌ Recipe not found`);
+      return res.status(404).json({ error: "Recipe not found" });
+    }
+
+    const recipe = recipes[0];
+    console.log(`✅ Recipe found: "${recipe.title}"`);
+
+    try {
+      // Format response according to schema
+      // Check if the data is already parsed
+      const ingredients =
+        typeof recipe.ingredients === "string"
+          ? JSON.parse(recipe.ingredients)
+          : recipe.ingredients;
+      const instructions =
+        typeof recipe.instructions === "string"
+          ? JSON.parse(recipe.instructions)
+          : recipe.instructions;
+      const nutritional_info = recipe.nutritional_info
+        ? typeof recipe.nutritional_info === "string"
+          ? JSON.parse(recipe.nutritional_info)
+          : recipe.nutritional_info
+        : null;
+
+      const formattedResponse = {
+        id: recipe.id,
+        title: recipe.title,
+        description: recipe.description,
+        category: recipe.category,
+        ingredients: ingredients,
+        instructions: instructions,
+        nutritional_info: nutritional_info,
+      };
+
+      console.log(`✅ Successfully formatted recipe response`);
+      res.json(formattedResponse);
+    } catch (parseError) {
+      console.error("❌ Error parsing recipe data:", parseError);
+      console.error("Recipe data:", recipe);
+      res.status(500).json({
+        error: "Failed to parse recipe data",
+        details: parseError.message,
+      });
+    }
+  } catch (err) {
+    console.error("❌ Database error fetching saved recipe:", err);
+    res.status(500).json({
+      error: "Failed to fetch recipe",
+      details: err.message,
+    });
+  }
+});
+
+app.post("/recipe-question", llmLimiter, async (req, res) => {
+  const { recipeContext, question, conversationHistory = [] } = req.body;
+
+  if (!recipeContext || !question) {
+    return res
+      .status(400)
+      .json({ error: "Recipe context and question are required" });
+  }
+
+  try {
+    const response = await fetch(process.env.OPENAI_API_BASE_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a helpful cooking assistant. You have full knowledge of the recipe being discussed. Answer questions clearly and concisely, focusing on practical cooking advice.",
+          },
+          {
+            role: "user",
+            content: `Here is the recipe context:\n${JSON.stringify(
+              recipeContext
+            )}\n\nConversation history:\n${conversationHistory
+              .map((msg) => `${msg.role}: ${msg.content}`)
+              .join("\n")}\n\nQuestion: ${question}`,
+          },
+        ],
+        max_tokens: 500,
+      }),
+    });
+
+    const data = await response.json();
+    res.json({ answer: data.choices[0].message.content });
+  } catch (error) {
+    console.error("Error processing recipe question:", error);
+    res.status(500).json({ error: "Failed to process recipe question" });
+  }
+});
+
+app.post("/track-share", authenticateToken, async (req, res) => {
+  const { recipe_id } = req.body;
+  console.log(`📱 User ${req.user.user_id} is sharing recipe ${recipe_id}`);
+
+  try {
+    const conn = await pool.getConnection();
+
+    // Record the share
+    console.log(`📝 Recording share in database...`);
+    await conn.query(
+      "INSERT INTO user_shares (user_id, recipe_id, shared_date) VALUES (?, ?, CURRENT_DATE)",
+      [req.user.user_id, recipe_id]
+    );
+    console.log(`✅ Share recorded successfully`);
+
+    // Award flames for sharing
+    console.log(`🔥 Awarding flame to user ${req.user.user_id}...`);
+    await awardFlamesToUser(req.user.user_id, 1);
+    console.log(`✨ Flame awarded successfully`);
+
+    conn.release();
+
+    console.log(`🎉 Share process completed for user ${req.user.user_id}`);
+    res.status(200).json({
+      message: "Share tracked successfully",
+      flamesAwarded: 1,
+    });
+  } catch (err) {
+    console.error("❌ Error tracking share:", err);
+    console.error(`- User ID: ${req.user.user_id}`);
+    console.error(`- Recipe ID: ${recipe_id}`);
+    console.error(`- Error details:`, err);
+    res.status(500).json({ error: "Failed to track share" });
+  }
+});
+
+app.post("/submit-review", authenticateToken, async (req, res) => {
+  const { recipe_id, rating, comment } = req.body;
+
+  if (!recipe_id || !rating || rating < 1 || rating > 5) {
+    return res.status(400).json({ error: "Invalid rating or missing data." });
+  }
+
+  try {
+    const conn = await pool.getConnection();
+
+    // ✅ Ensure recipe exists
+    const recipeCheck = await conn.query(
+      "SELECT id FROM recipes WHERE id = ?",
+      [recipe_id]
+    );
+    if (recipeCheck.length === 0) {
+      conn.release();
+      return res.status(404).json({ error: "Recipe not found." });
+    }
+
+    // ✅ Prevent duplicate reviews
+    const existingReview = await conn.query(
+      "SELECT id FROM reviews WHERE recipe_id = ? AND user_id = ?",
+      [recipe_id, req.user.user_id]
+    );
+    if (existingReview.length > 0) {
+      conn.release();
+      return res
+        .status(409)
+        .json({ error: "You have already reviewed this recipe." });
+    }
+
+    // ✅ Insert review
+    await conn.query(
+      "INSERT INTO reviews (recipe_id, user_id, rating, comment) VALUES (?, ?, ?, ?)",
+      [recipe_id, req.user.user_id, rating, comment]
+    );
+
+    // ✅ Award flames for writing a review
+    await awardFlamesToUser(req.user.user_id, 3);
+
+    conn.release();
+    console.log(
+      `✅ User ${req.user.user_id} submitted a review for Recipe ${recipe_id}`
+    );
+
+    res
+      .status(201)
+      .json({ message: "Review submitted successfully!", flamesEarned: 5 });
+  } catch (err) {
+    console.error("❌ Error submitting review:", err);
+    res.status(500).json({ error: "Failed to submit review." });
+  }
+});
+
+app.get("/reviews/:recipe_id", async (req, res) => {
+  const { recipe_id } = req.params;
+
+  try {
+    const conn = await pool.getConnection();
+    const reviews = await conn.query(
+      `SELECT reviews.id, reviews.rating, reviews.comment, reviews.created_at, 
+              users.username 
+       FROM reviews 
+       JOIN users ON reviews.user_id = users.id
+       WHERE reviews.recipe_id = ? 
+       ORDER BY reviews.created_at DESC`,
+      [recipe_id]
+    );
+    conn.release();
+
+    res.status(200).json({ reviews });
+  } catch (err) {
+    console.error("❌ Error fetching reviews:", err);
+    res.status(500).json({ error: "Failed to fetch reviews." });
+  }
+});
+
+app.get("/user-reviews", authenticateToken, async (req, res) => {
+  try {
+    const conn = await pool.getConnection();
+    const reviews = await conn.query(
+      `SELECT reviews.id, reviews.rating, reviews.comment, reviews.created_at, 
+              recipes.title AS recipe_title 
+       FROM reviews 
+       JOIN recipes ON reviews.recipe_id = recipes.id
+       WHERE reviews.user_id = ? 
+       ORDER BY reviews.created_at DESC`,
+      [req.user.user_id]
+    );
+    conn.release();
+
+    res.status(200).json({ reviews });
+  } catch (err) {
+    console.error("❌ Error fetching user reviews:", err);
+    res.status(500).json({ error: "Failed to fetch user reviews." });
+  }
+});
+
+app.listen(port, "0.0.0.0", () => {
+  console.log(`Server is running on port ${port} `);
+});

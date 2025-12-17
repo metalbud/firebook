@@ -1,0 +1,387 @@
+import { StyleSheet, Platform } from "react-native";
+
+const styles = StyleSheet.create({
+  questionContainer: {
+    padding: 15,
+    marginTop: 10,
+    paddingBottom: Platform.OS === "ios" ? 50 : 100,
+  },
+  questionInput: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 15,
+    marginBottom: 15,
+    minHeight: 100,
+    maxHeight: 150,
+    backgroundColor: "#fff",
+    fontSize: 16,
+    textAlignVertical: "top",
+  },
+  darkQuestionInput: {
+    borderColor: "#444",
+    backgroundColor: "#333",
+    color: "#fff",
+  },
+  questionHistoryItem: {
+    marginTop: 15,
+    padding: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: "#29A887",
+  },
+  questionText: {
+    fontWeight: "bold",
+    marginBottom: 5,
+  },
+  answerText: {
+    marginLeft: 10,
+  },
+  questionButtonContainer: {
+    minHeight: 40,
+    justifyContent: "center",
+    marginVertical: 10,
+  },
+  container: {
+    flex: 1,
+    padding: 16,
+    paddingBottom: Platform.OS === "ios" ? 80 : 120,
+    backgroundColor: "#fff",
+  },
+  darkContainer: {
+    backgroundColor: "#121212",
+  },
+  recipeHeaderSection: {
+    marginBottom: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.8)",
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  darkRecipeHeaderSection: {
+    backgroundColor: "rgba(40, 40, 40, 0.8)",
+  },
+  header: {
+    fontSize: 28,
+    fontWeight: "800",
+    marginBottom: 12,
+    textAlign: "center",
+    color: "#000",
+    letterSpacing: 0.5,
+    textShadowColor: "rgba(0, 0, 0, 0.1)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  category: {
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+    marginBottom: 16,
+    color: "#FF4500",
+    backgroundColor: "rgba(255, 69, 0, 0.1)",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    alignSelf: "center",
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255, 69, 0, 0.2)",
+  },
+  description: {
+    fontSize: 17,
+    lineHeight: 24,
+    textAlign: "center",
+    marginHorizontal: 10,
+    marginBottom: 10,
+    color: "#555",
+    fontWeight: "400",
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginTop: 15,
+    marginBottom: 5,
+    color: "#000",
+  },
+  ingredientsContainer: {
+    backgroundColor: "#f5f5f5",
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 20,
+  },
+  darkIngredientsContainer: {
+    backgroundColor: "#333",
+  },
+  ingredientsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+    paddingHorizontal: 8,
+  },
+  controlsContainer: {
+    flexDirection: "column",
+    gap: 8,
+  },
+  measurementContainer: {
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  pillContainer: {
+    flexDirection: "row",
+    backgroundColor: "#f0f0f0",
+    borderRadius: 20,
+    overflow: "hidden",
+  },
+  pillButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    minWidth: 70,
+    alignItems: "center",
+  },
+  pillButtonActive: {
+    backgroundColor: "#29A887",
+  },
+  pillButtonText: {
+    color: "#666",
+    fontWeight: "bold",
+  },
+  pillButtonTextActive: {
+    color: "#fff",
+  },
+  pillDivider: {
+    width: 1,
+    backgroundColor: "#ddd",
+  },
+  pillLeft: {
+    borderTopLeftRadius: 20,
+    borderBottomLeftRadius: 20,
+  },
+  pillRight: {
+    borderTopRightRadius: 20,
+    borderBottomRightRadius: 20,
+  },
+  scaleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+  scaleLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#666",
+  },
+  dropdown: {
+    position: "relative",
+    zIndex: 1,
+  },
+  dropdownButton: {
+    backgroundColor: "#f0f0f0",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    minWidth: 60,
+    alignItems: "center",
+  },
+  darkDropdownButton: {
+    backgroundColor: "#333",
+  },
+  dropdownButtonText: {
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  dropdownMenu: {
+    position: "absolute",
+    top: "100%",
+    left: 0,
+    right: 0,
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    marginTop: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  darkDropdownMenu: {
+    backgroundColor: "#333",
+  },
+  dropdownItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  dropdownItemActive: {
+    backgroundColor: "#29A887",
+  },
+  dropdownItemText: {
+    fontSize: 14,
+  },
+  dropdownItemTextActive: {
+    color: "#fff",
+  },
+  ingredientsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  ingredientItem: {
+    width: "48%",
+    backgroundColor: "#fff",
+    padding: 12,
+    marginBottom: 12,
+    borderRadius: 8,
+  },
+  darkIngredientItem: {
+    backgroundColor: "#2a2a2a",
+  },
+  editButton: {
+    padding: 8,
+    borderRadius: 4,
+    backgroundColor: "#29A887",
+  },
+  editButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+  },
+  amountContainer: {
+    flex: 1,
+    flexDirection: "row",
+    gap: 8,
+    marginRight: 8,
+  },
+  amountUnitContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  amountInput: {
+    flex: 1,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 4,
+    backgroundColor: "#fff",
+    minWidth: 60,
+  },
+  unitPicker: {
+    flex: 1,
+    height: 40,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 4,
+    backgroundColor: "#fff",
+  },
+  ingredientInput: {
+    flex: 1,
+    marginRight: 8,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 4,
+    backgroundColor: "#fff",
+  },
+  darkIngredientInput: {
+    borderColor: "#444",
+    backgroundColor: "#222",
+    color: "#fff",
+  },
+  addButton: {
+    backgroundColor: "#29A887",
+    padding: 8,
+    borderRadius: 4,
+    marginTop: 8,
+  },
+  removeButton: {
+    backgroundColor: "#ff4d4d",
+    padding: 8,
+    borderRadius: 4,
+    marginLeft: 8,
+  },
+  buttonText: {
+    color: "#fff",
+    fontWeight: "bold",
+  },
+  ingredientCard: {
+    width: "48%",
+    backgroundColor: "#f5f5f5",
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 6,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
+  darkIngredientCard: {
+    backgroundColor: "#333",
+  },
+  ingredientName: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  ingredientAmount: {
+    fontSize: 14,
+    color: "#666",
+  },
+  ingredientMetric: {
+    fontSize: 12,
+    color: "#888",
+    fontStyle: "italic",
+  },
+  instructionStep: {
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: "#f8f8f8",
+    marginBottom: 10,
+  },
+  stepNumber: {
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  stepDescription: {
+    fontSize: 16,
+  },
+  buttonContainer: {
+    marginTop: 20,
+    paddingBottom: Platform.OS === "ios" ? 30 : 50,
+    flexDirection: "row",
+    justifyContent: "space-evenly",
+  },
+  noDataContainer: {
+    marginTop: 20,
+    alignItems: "center",
+  },
+  noDataText: {
+    fontSize: 18,
+    color: "#777",
+  },
+  darkText: {
+    color: "#fff",
+  },
+  darkHeader: {
+    color: "#fff",
+    textShadowColor: "rgba(0, 0, 0, 0.2)",
+  },
+  darkCategory: {
+    color: "#3DD1A8",
+    backgroundColor: "rgba(41, 168, 135, 0.15)",
+    borderColor: "rgba(41, 168, 135, 0.3)",
+  },
+  darkDescription: {
+    color: "#bbb",
+  },
+  darkBox: {
+    backgroundColor: "#1E1E1E",
+  },
+});
+
+export default styles;
