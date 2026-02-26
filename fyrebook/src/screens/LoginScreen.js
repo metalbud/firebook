@@ -7,12 +7,20 @@ import {
   ActivityIndicator,
   Keyboard,
   TouchableWithoutFeedback,
+  Alert,
+  StyleSheet,
 } from "react-native";
 import { FYREBOOK_BASE_URL } from "@env";
 import { useNavigation } from "@react-navigation/native";
 import * as SecureStore from "expo-secure-store"; // Secure Storage
 import AsyncStorage from "@react-native-async-storage/async-storage"; // Async Storage
 import styles from "../styles/SharedStyles"; // Import shared styles
+import { Ionicons } from '@expo/vector-icons';
+import {
+  signInWithGoogle,
+  signInWithFacebook,
+  signInWithApple,
+} from "../services/authService";
 
 function LoginScreen() {
   const navigation = useNavigation();
@@ -23,6 +31,11 @@ function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [loginSuccess, setLoginSuccess] = useState(false);
   const [rememberMe, setRememberMe] = useState(false); // New state
+  const [oauthLoading, setOAuthLoading] = useState({
+    google: false,
+    facebook: false,
+    apple: false,
+  });
 
   async function handleLogin() {
     setError("");
@@ -63,10 +76,104 @@ function LoginScreen() {
     }
   }
 
+  const handleGoogleLogin = async () => {
+    setOAuthLoading(prev => ({ ...prev, google: true }));
+    try {
+      const result = await signInWithGoogle();
+      console.log('Google login successful:', result);
+      setLoginSuccess(true);
+      setTimeout(() => navigation.navigate("Home"), 1000);
+    } catch (error) {
+      console.error('Google login error:', error);
+      Alert.alert('Google Login Failed', error.message || 'An error occurred during Google login');
+    } finally {
+      setOAuthLoading(prev => ({ ...prev, google: false }));
+    }
+  };
+
+  const handleFacebookLogin = async () => {
+    setOAuthLoading(prev => ({ ...prev, facebook: true }));
+    try {
+      const result = await signInWithFacebook();
+      console.log('Facebook login successful:', result);
+      setLoginSuccess(true);
+      setTimeout(() => navigation.navigate("Home"), 1000);
+    } catch (error) {
+      console.error('Facebook login error:', error);
+      Alert.alert('Facebook Login Failed', error.message || 'An error occurred during Facebook login');
+    } finally {
+      setOAuthLoading(prev => ({ ...prev, facebook: false }));
+    }
+  };
+
+  const handleAppleLogin = async () => {
+    setOAuthLoading(prev => ({ ...prev, apple: true }));
+    try {
+      const result = await signInWithApple();
+      console.log('Apple login successful:', result);
+      setLoginSuccess(true);
+      setTimeout(() => navigation.navigate("Home"), 1000);
+    } catch (error) {
+      console.error('Apple login error:', error);
+      Alert.alert('Apple Login Failed', error.message || 'An error occurred during Apple login');
+    } finally {
+      setOAuthLoading(prev => ({ ...prev, apple: false }));
+    }
+  };
+
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <View style={styles.container}>
         <Text style={styles.title}>Login</Text>
+
+        {/* OAuth Buttons */}
+        <View style={oauthStyles.oauthContainer}>
+          <TouchableOpacity
+            style={[oauthStyles.oauthButton, oauthStyles.googleButton]}
+            onPress={handleGoogleLogin}
+            disabled={oauthLoading.google}
+          >
+            {oauthLoading.google ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Ionicons name="logo-google" size={24} color="#fff" />
+            )}
+            <Text style={oauthStyles.oauthButtonText}>Continue with Google</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[oauthStyles.oauthButton, oauthStyles.facebookButton]}
+            onPress={handleFacebookLogin}
+            disabled={oauthLoading.facebook}
+          >
+            {oauthLoading.facebook ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Ionicons name="logo-facebook" size={24} color="#fff" />
+            )}
+            <Text style={oauthStyles.oauthButtonText}>Continue with Facebook</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[oauthStyles.oauthButton, oauthStyles.appleButton]}
+            onPress={handleAppleLogin}
+            disabled={oauthLoading.apple}
+          >
+            {oauthLoading.apple ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Ionicons name="logo-apple" size={24} color="#fff" />
+            )}
+            <Text style={oauthStyles.oauthButtonText}>Continue with Apple</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={oauthStyles.dividerContainer}>
+          <View style={oauthStyles.divider} />
+          <Text style={oauthStyles.dividerText}>OR</Text>
+          <View style={oauthStyles.divider} />
+        </View>
+
         <View style={styles.inputGroup}>
           <Text>Email or Username:</Text>
           <TextInput
@@ -130,5 +237,51 @@ function LoginScreen() {
     </TouchableWithoutFeedback>
   );
 }
+
+const oauthStyles = StyleSheet.create({
+  oauthContainer: {
+    width: '100%',
+    marginBottom: 24,
+  },
+  oauthButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 14,
+    borderRadius: 8,
+    marginBottom: 12,
+    gap: 12,
+  },
+  googleButton: {
+    backgroundColor: '#4285F4',
+  },
+  facebookButton: {
+    backgroundColor: '#1877F2',
+  },
+  appleButton: {
+    backgroundColor: '#000000',
+  },
+  oauthButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginVertical: 20,
+  },
+  divider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e0e0e0',
+  },
+  dividerText: {
+    paddingHorizontal: 16,
+    color: '#666',
+    fontSize: 14,
+  },
+});
 
 export default LoginScreen;

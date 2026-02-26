@@ -7,6 +7,8 @@ require("dotenv").config();
 // Import routes
 const authRoutes = require("./src/routes/auth");
 const recipeRoutes = require("./src/routes/recipes");
+const socialRoutes = require("./src/routes/social");
+const oauthRoutes = require("./src/routes/oauth");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -25,6 +27,8 @@ app.set("trust proxy", 1);
 
 // Mount routes
 app.use("/", authRoutes); // Auth routes: /signup, /login, /me
+app.use("/", oauthRoutes); // OAuth routes: /auth/google, /auth/facebook, /auth/apple
+app.use("/", socialRoutes); // Social routes: /posts, /likes, /comments, /follows, /notifications, /users
 app.use("/", recipeRoutes); // Recipe routes: /save-recipe, /random-recipes, etc.
 
 // APK download route

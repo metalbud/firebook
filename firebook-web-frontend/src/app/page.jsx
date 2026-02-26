@@ -1,91 +1,261 @@
-import React from "react";
-import Image from "next/image";
-import "./styles.css";
-import SubscribeForm from "./components/SubscribeForm";
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { useAuth } from './contexts/AuthContext';
+import Feed from './components/social/Feed';
+import Image from 'next/image';
 
 export default function Home() {
-  const handleSubscribe = async (event) => {
-    event.preventDefault();
-    const email = event.target.email.value;
+  const { isAuthenticated, user } = useAuth();
+  const router = useRouter();
 
-    try {
-      const response = await fetch("https://www.firebook.app/api/subscribe", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      if (response.ok) {
-        alert("You're on the wait list!");
-      } else {
-        const errorData = await response.json();
-        alert(`Error: ${errorData.error}`);
-      }
-    } catch (error) {
-      console.error("Failed to join the wait list:", error);
-      alert("Failed to join. Please try again later.");
+  // Redirect to feed if authenticated
+  useEffect(() => {
+    if (isAuthenticated && typeof window !== 'undefined') {
+      router.push('/feed');
     }
+  }, [isAuthenticated]);
+
+  // If authenticated, don't render landing page (handled by redirect above)
+  if (isAuthenticated) {
+    return null;
+  }
+
+  const handleGetStarted = () => {
+    router.push('/signup');
+  };
+
+  const handleLogin = () => {
+    router.push('/login');
   };
 
   return (
-    <div className="container">
-      <div className="content">
-        <h1>Welcome to Firebook</h1>
-        <p>
-          AI-powered culinary companion that transforms your cooking experience.
-        </p>
-      </div>
+    <div style={{ minHeight: '100vh', backgroundColor: '#f5f5f5' }}>
+      {/* Hero Section */}
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '80px 20px',
+        textAlign: 'center',
+      }}>
+        <div style={{
+          maxWidth: '800px',
+          textAlign: 'center',
+        }}>
+          <h1 style={{
+            fontSize: '48px',
+            fontWeight: '700',
+            margin: '0 0 40px',
+            color: '#ff6b35',
+          }}>
+            🔥 Firebook
+          </h1>
 
-      <div className="hero-image">
-        <Image
-          src="/images/mystical-cookbook.png"
-          alt="Firebook"
-          width={600}
-          height={400}
-        />
-        <div className="overlay-text">Firebook 🔥🔥</div>
-      </div>
+          <p style={{
+            fontSize: '20px',
+            color: '#666',
+            marginBottom: '40px',
+            lineHeight: '1.6',
+          }}>
+            Discover, share, and connect with food lovers worldwide.
+            <br />
+            The ultimate social platform for cooking enthusiasts.
+          </p>
 
-      <div className="features">
-        <div className="feature">
-          <h2>Personalized Recipe Generation</h2>
-          <p>
-            Input the ingredients you have, and Firebook will craft a custom
-            recipe to make the best use of them, reducing food waste and
-            inspiring creativity in your cooking.
-          </p>
+          {/* Features */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: '32px',
+            marginBottom: '48px',
+            width: '100%',
+          }}>
+            <div style={{
+              backgroundColor: '#ffffff',
+              padding: '32px',
+              borderRadius: '12px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+              transition: 'transform 0.2s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-8px)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+            >
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>📝</div>
+              <h3 style={{
+                fontSize: '20px',
+                fontWeight: '600',
+                margin: '0 0 12px',
+                color: '#333',
+              }}>
+                Social Feed
+              </h3>
+              <p style={{
+                fontSize: '16px',
+                color: '#666',
+                lineHeight: '1.5',
+                marginBottom: '24px',
+              }}>
+                Share your cooking journey, discover new recipes,
+                and connect with fellow food enthusiasts.
+              </p>
+            </div>
+
+            <div style={{
+              backgroundColor: '#ffffff',
+              padding: '32px',
+              borderRadius: '12px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+              transition: 'transform 0.2s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-8px)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+            >
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>🍽️</div>
+              <h3 style={{
+                fontSize: '20px',
+                fontWeight: '600',
+                margin: '0 0 12px',
+                color: '#333',
+              }}>
+                AI-Powered Recipes
+              </h3>
+              <p style={{
+                fontSize: '16px',
+                color: '#666',
+                lineHeight: '1.5',
+                marginBottom: '24px',
+              }}>
+                Get personalized recipe recommendations based on
+                your preferences, dietary restrictions, and available ingredients.
+              </p>
+            </div>
+
+            <div style={{
+              backgroundColor: '#ffffff',
+              padding: '32px',
+              borderRadius: '12px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+              transition: 'transform 0.2s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-8px)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+            >
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>👥</div>
+              <h3 style={{
+                fontSize: '20px',
+                fontWeight: '600',
+                margin: '0 0 12px',
+                color: '#333',
+              }}>
+                Save & Share
+              </h3>
+              <p style={{
+                fontSize: '16px',
+                color: '#666',
+                lineHeight: '1.5',
+                marginBottom: '24px',
+              }}>
+                Save your favorite recipes, track your cooking progress,
+                and share your culinary creations with the community.
+              </p>
+            </div>
+
+            <div style={{
+              backgroundColor: '#ffffff',
+              padding: '32px',
+              borderRadius: '12px',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+              transition: 'transform 0.2s',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-8px)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+            >
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>🎯</div>
+              <h3 style={{
+                fontSize: '20px',
+                fontWeight: '600',
+                margin: '0 0 12px',
+                color: '#333',
+              }}>
+                Earn Flames & Level Up
+              </h3>
+              <p style={{
+                fontSize: '16px',
+                color: '#666',
+                lineHeight: '1.5',
+                marginBottom: '24px',
+              }}>
+                Complete challenges to earn flames, level up, and unlock
+                exclusive badges. Showcase your culinary achievements!
+              </p>
+            </div>
+          </div>
+
+          {/* CTA Buttons */}
+          <div style={{
+            display: 'flex',
+            gap: '16px',
+            justifyContent: 'center',
+            marginTop: '48px',
+            flexWrap: 'wrap',
+          }}>
+            <button
+              onClick={handleGetStarted}
+              style={{
+                padding: '16px 32px',
+                border: 'none',
+                borderRadius: '8px',
+                backgroundColor: '#ff6b35',
+                color: '#ffffff',
+                fontSize: '18px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'transform 0.2s, background-color 0.2s',
+                minWidth: '180px',
+              }}
+              onMouseEnter={(e) => { e.target.style.transform = 'translateY(-2px)'; }}
+              onMouseLeave={(e) => { e.target.style.transform = 'translateY(0)'; }}
+            >
+              Get Started
+            </button>
+            <button
+              onClick={handleLogin}
+              style={{
+                padding: '16px 32px',
+                border: '2px solid #ff6b35',
+                borderRadius: '8px',
+                backgroundColor: 'transparent',
+                color: '#ff6b35',
+                fontSize: '18px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'transform 0.2s, background-color 0.2s',
+                minWidth: '180px',
+              }}
+              onMouseEnter={(e) => { e.target.style.transform = 'translateY(-2px)'; }}
+              onMouseLeave={(e) => { e.target.style.transform = 'translateY(0)'; }}
+            >
+              Log In
+            </button>
+          </div>
         </div>
-        <div className="feature">
-          <h2>Dietary Customization</h2>
-          <p>
-            Whether you&apos;re vegan, gluten-free, or have other dietary
-            restrictions, Firebook adjusts recipes to meet your specific needs,
-            ensuring delicious meals that align with your lifestyle.
-          </p>
-        </div>
-        <div className="feature">
-          <h2>Step-by-Step Instructions</h2>
-          <p>
-            Each recipe comes with clear, easy-to-follow instructions, making
-            cooking accessible for both beginners and seasoned chefs.
-          </p>
-        </div>
-        <div className="feature">
-          <h2>Nutritional Information</h2>
-          <p>
-            Stay informed about the nutritional content of your meals with
-            detailed breakdowns provided for each recipe.
-          </p>
+
+        {/* Footer */}
+        <div style={{
+          textAlign: 'center',
+          padding: '40px',
+          fontSize: '14px',
+          color: '#999',
+          borderTop: '1px solid #e0e0e0',
+          marginTop: 'auto',
+        }}>
+          &copy; 2026 Firebook. All rights reserved.
         </div>
       </div>
-
-      <div className="subscribe-form">
-        <SubscribeForm />
-      </div>
-
-      <div className="footer">&copy; 2025 Firebook. All rights reserved.</div>
     </div>
   );
 }

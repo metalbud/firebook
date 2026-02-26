@@ -183,4 +183,50 @@ router.get("/me", authenticateToken, async (req, res) => {
   }
 });
 
+/*
+|---------------------------------------------------------------------------
+| Get Social Stats Route
+|---------------------------------------------------------------------------
+*/
+router.get("/me/social-stats", authenticateToken, async (req, res) => {
+  try {
+    console.log("✅ Fetching social stats for user:", req.user.user_id);
+
+    if (!req.user || !req.user.user_id) {
+      console.error("❌ Missing user ID in token.");
+      return res.status(401).json({ error: "Invalid user token." });
+    }
+
+    const conn = await pool.getConnection();
+    const [stats] = await conn.query(
+      `SELECT
+        followers_count,
+        following_count,
+        posts_count,
+        flames,
+        level,
+        streak_days,
+        badges
+      FROM users
+      WHERE id = ?`,
+      [req.user.user_id]
+    );
+
+    if (stats.length === 0) {
+      console.error("❌ User not found. User ID:", req.user.user_id);
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    const userStats = stats[0];
+    userStats.badges = JSON.parse(userStats.badges || "[]");
+
+    conn.release();
+
+    res.status(200).json(userStats);
+  } catch (err) {
+    console.error("❌ Database Error fetching social stats:", err);
+    res.status(500).json({ error: "Failed to fetch social stats." });
+  }
+});
+
 module.exports = router;
