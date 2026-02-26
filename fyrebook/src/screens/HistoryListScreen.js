@@ -49,7 +49,7 @@ const HistoryListScreen = () => {
       return;
     }
 
-    navigation.navigate("SavedRecipeDetailScreen", { recipe });
+    navigation.navigate("RecipeDetails", { recipe });
   };
 
   return (

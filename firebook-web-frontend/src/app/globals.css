@@ -1,33 +1,56 @@
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --ember:         #FF6B2C;
+  --ember-dark:    #E44716;
+  --ember-light:   #FF9B58;
+  --gold:          #F9D976;
+  --surface:       #FFF7EF;
+  --surface-dark:  #0F0A0A;
+  --charcoal:      #1C1412;
+  --text:          #1B0F0B;
+  --text-muted:    #5C4335;
+  --teal:          #29A887;
+  --error:         #D64545;
+  --accent:        var(--ember);
+  --bg:            var(--surface);
+  --panel:         #ffffff;
+  --grad-header:   linear-gradient(135deg, #FFB65C, #FF8244, #E44716);
+  --grad-hero:     linear-gradient(135deg, #FFE4CC, #FF9B58, #E4571E);
+  --grad-card:     linear-gradient(135deg, #FF6B2C 0%, #F9D976 100%);
+  --header-height: 60px;
+  --radius-input:  8px;
+  --radius-card:   14px;
+  --radius-hero:   20px;
+  --radius-pill:   30px;
+  --shadow-card:   0 4px 16px rgba(0,0,0,0.12);
+  --shadow-warm:   0 4px 16px rgba(255,107,44,0.18);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
-
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+.dark-mode {
+  --bg:         var(--surface-dark);
+  --panel:      var(--charcoal);
+  --text:       #F0E8E0;
+  --text-muted: #9E7D70;
+  --grad-header: linear-gradient(135deg, #140B0B, #1E0E0C, #2C120F);
 }
 
 * {
   box-sizing: border-box;
-  padding: 0;
   margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-size: 15px;
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.dark-mode body {
+  color-scheme: dark;
 }
 
 a {
@@ -35,8 +58,9 @@ a {
   text-decoration: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
+input,
+textarea,
+select,
+button {
+  font-family: inherit;
 }

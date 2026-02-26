@@ -119,7 +119,7 @@ const RecipeItemCardSmall = ({
         throw new Error("Complete recipe data not available.");
       }
 
-      await addToSavedRecipes(recipeToSave);
+      await addToSavedRecipes({ recipe_data: recipeToSave });
       setIsSaved(true);
 
       const response = await fetch(
