@@ -17,3 +17,7 @@ fyrebook/.env
 .env
 .aider*
 aider_chat.sh
+/backend/node_modules
+/node_modules
+/.claude
+cline/
