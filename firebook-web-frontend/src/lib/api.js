@@ -39,7 +39,6 @@ export const apiCall = async (endpoint, options = {}) => {
     ...options,
     headers: {
       ...defaultHeaders,
-      ...options.headers,
     },
   };
   
@@ -77,7 +76,7 @@ const refreshAuthToken = async () => {
     const refreshToken = localStorage.getItem('firebook_refresh_token');
     if (!refreshToken) return false;
     
-    const response = await fetch(`${API_BASE_URL}/refresh-token`, {
+    const response = await fetch(`${API_BASE_URL}/api/refresh-token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
