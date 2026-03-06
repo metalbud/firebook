@@ -43,6 +43,9 @@ function GenerateContent() {
   const [generatedRecipe, setGeneratedRecipe] = useState(null);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [mode, setMode] = useState('quick'); // 'quick' or 'advanced'
+  const [quickRecipeName, setQuickRecipeName] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Pre-populate from ?q= query param
   useEffect(() => {
@@ -89,10 +92,6 @@ function GenerateContent() {
   };
 
   const generateRecipe = async () => {
-    if (ingredients.length === 0) {
-      setError('Please add at least one ingredient.');
-      return;
-    }
     setError('');
     setGenerating(true);
     setGeneratedRecipe(null);
@@ -105,43 +104,90 @@ function GenerateContent() {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       };
 
-      // Step 1: get recipe title suggestion
-      const suggestRes = await fetch(`${API_BASE_URL}/api/suggested-recipes`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          ingredients,
-          dietary: preferences.dietary,
-          cuisine: preferences.cuisine,
-          cookingTime: preferences.cookingTime,
-          difficulty: preferences.difficulty,
-        }),
-      });
+      if (mode === 'quick') {
+        // Quick recipe mode: check database first, then generate if not found
+        if (!quickRecipeName.trim()) {
+          setError('Please enter a recipe name.');
+          return;
+        }
 
-      if (!suggestRes.ok) {
-        const d = await suggestRes.json().catch(() => ({}));
-        throw new Error(d.error || 'Failed to get recipe suggestions.');
+        // Step 1: Check if recipe exists in database
+        const checkRes = await fetch(`${API_BASE_URL}/api/get-saved-recipe`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ recipeTitle: quickRecipeName.trim() }),
+        });
+
+        let recipe;
+        if (checkRes.ok) {
+          // Recipe found in database
+          recipe = await checkRes.json();
+          console.log('Recipe found in database:', recipe);
+        } else {
+          // Recipe not found, generate new one
+          console.log('Recipe not found in database, generating...');
+          const detailRes = await fetch(`${API_BASE_URL}/api/fetch-recipe-details`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ recipeTitle: quickRecipeName.trim() }),
+          });
+
+          if (!detailRes.ok) {
+            const d = await detailRes.json().catch(() => ({}));
+            throw new Error(d.error || 'Failed to fetch recipe details.');
+          }
+
+          const detailData = await detailRes.json();
+          recipe = detailData.recipe || detailData;
+        }
+
+        setGeneratedRecipe(recipe);
+      } else {
+        // Ingredients mode: existing logic
+        if (ingredients.length === 0) {
+          setError('Please add at least one ingredient.');
+          setGenerating(false);
+          return;
+        }
+
+        // Step 1: get recipe title suggestion
+        const suggestRes = await fetch(`${API_BASE_URL}/api/suggested-recipes`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            ingredients,
+            dietary: preferences.dietary,
+            cuisine: preferences.cuisine,
+            cookingTime: preferences.cookingTime,
+            difficulty: preferences.difficulty,
+          }),
+        });
+
+        if (!suggestRes.ok) {
+          const d = await suggestRes.json().catch(() => ({}));
+          throw new Error(d.error || 'Failed to get recipe suggestions.');
+        }
+
+        const suggestData = await suggestRes.json();
+        const recipeTitle = suggestData.recipeTitle || suggestData.title || suggestData.recipe_title;
+
+        if (!recipeTitle) throw new Error('No recipe title returned.');
+
+        // Step 2: fetch full recipe details
+        const detailRes = await fetch(`${API_BASE_URL}/api/fetch-recipe-details`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ recipeTitle }),
+        });
+
+        if (!detailRes.ok) {
+          const d = await detailRes.json().catch(() => ({}));
+          throw new Error(d.error || 'Failed to fetch recipe details.');
+        }
+
+        const detailData = await detailRes.json();
+        recipe = detailData.recipe || detailData;
       }
-
-      const suggestData = await suggestRes.json();
-      const recipeTitle = suggestData.recipeTitle || suggestData.title || suggestData.recipe_title;
-
-      if (!recipeTitle) throw new Error('No recipe title returned.');
-
-      // Step 2: fetch full recipe details
-      const detailRes = await fetch(`${API_BASE_URL}/api/fetch-recipe-details`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ recipeTitle }),
-      });
-
-      if (!detailRes.ok) {
-        const d = await detailRes.json().catch(() => ({}));
-        throw new Error(d.error || 'Failed to fetch recipe details.');
-      }
-
-      const detailData = await detailRes.json();
-      const recipe = detailData.recipe || detailData;
 
       // Save to localStorage history
       try {
@@ -213,6 +259,32 @@ function GenerateContent() {
         <span className="flame-accent">🍳</span> Generate a Recipe
       </h1>
 
+      {/* Quick Recipe Mode - Default */}
+      <div className="generate-section">
+        <p className="generate-section-title">What recipe would you like?</p>
+        <input
+          className="form-input"
+          type="text"
+          value={quickRecipeName}
+          onChange={(e) => setQuickRecipeName(e.target.value)}
+          placeholder="e.g., Beef stroganoff, Chocolate cake…"
+          style={{ marginBottom: '12px' }}
+        />
+        <p className="generate-section-title" style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '12px' }}>
+          We&apos;ll check our database first, then generate a new recipe if needed.
+        </p>
+        <button
+          className="btn-secondary btn-sm"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          style={{ marginBottom: '16px' }}
+        >
+          {showAdvanced ? '▲ Hide Advanced Options' : '▼ Show Advanced Options'}
+        </button>
+      </div>
+
+      {/* Advanced Mode - Collapsible */}
+      {showAdvanced && (
+        <>
       {/* Ingredients */}
       <div className="generate-section">
         <p className="generate-section-title">What ingredients do you have?</p>
@@ -240,6 +312,8 @@ function GenerateContent() {
           </div>
         )}
       </div>
+
+      {/* Dietary Preferences */}
 
       {/* Dietary Preferences */}
       <div className="generate-section">
@@ -304,20 +378,22 @@ function GenerateContent() {
           </div>
         </div>
       </div>
+        </>
+      )}
 
       {error && <div className="alert alert-error">{error}</div>}
 
       <button
         className="btn-primary"
         onClick={generateRecipe}
-        disabled={generating || ingredients.length === 0}
+        disabled={generating || !quickRecipeName.trim()}
         style={{ width: '100%', marginTop: '8px', justifyContent: 'center' }}
       >
         {generating ? 'Generating…' : '✨ Generate Recipe'}
       </button>
 
       {/* Quick suggestions */}
-      {!generatedRecipe && !generating && (
+      {!generatedRecipe && !generating && showAdvanced && (
         <div className="generate-section" style={{ marginTop: '24px' }}>
           <p className="generate-section-title">💡 Quick Combinations</p>
           <div className="preference-options">
