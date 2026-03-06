@@ -1,91 +1,107 @@
-import React from "react";
-import Image from "next/image";
-import "./styles.css";
-import SubscribeForm from "./components/SubscribeForm";
+"use client";
 
-export default function Home() {
-  const handleSubscribe = async (event) => {
-    event.preventDefault();
-    const email = event.target.email.value;
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useAuth } from "../contexts/AuthContext";
+import { apiCall, API_ENDPOINTS } from "../lib/api";
+import RecipeCard from "../components/RecipeCard";
 
+export default function HomePage() {
+  const router = useRouter();
+  const { isAuthenticated } = useAuth();
+  const [query, setQuery] = useState("");
+  const [featured, setFeatured] = useState([]);
+  const [loadingFeatured, setLoadingFeatured] = useState(true);
+
+  useEffect(() => {
+    fetchFeatured();
+  }, []);
+
+  const fetchFeatured = async () => {
+    setLoadingFeatured(true);
     try {
-      const response = await fetch("https://www.firebook.app/api/subscribe", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      if (response.ok) {
-        alert("You're on the wait list!");
-      } else {
-        const errorData = await response.json();
-        alert(`Error: ${errorData.error}`);
+      const res = await apiCall(`${API_ENDPOINTS.RANDOM_RECIPES}?limit=6`);
+      if (res.ok) {
+        const data = await res.json();
+        setFeatured(data.recipes || data || []);
       }
-    } catch (error) {
-      console.error("Failed to join the wait list:", error);
-      alert("Failed to join. Please try again later.");
+    } catch (err) {
+      console.error("Failed to fetch featured recipes:", err);
+    } finally {
+      setLoadingFeatured(false);
     }
   };
 
+  const handleIgnite = (e) => {
+    e.preventDefault();
+    if (!query.trim()) return;
+    router.push(`/generate?q=${encodeURIComponent(query.trim())}`);
+  };
+
   return (
-    <div className="container">
-      <div className="content">
-        <h1>Welcome to Firebook</h1>
-        <p>
-          AI-powered culinary companion that transforms your cooking experience.
+    <div className="page-content">
+      {/* Hero */}
+      <div className="hero-card">
+        <h1 className="hero-title">Ignite your menu 🔥</h1>
+        <p className="hero-subtitle">
+          Describe what you have and we&apos;ll generate the perfect recipe.
         </p>
+        <form className="hero-search" onSubmit={handleIgnite}>
+          <input
+            className="hero-input"
+            type="text"
+            placeholder="Chicken, garlic, lemon…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <button className="btn-ignite" type="submit">
+            Ignite 🔥
+          </button>
+        </form>
       </div>
 
-      <div className="hero-image">
-        <Image
-          src="/images/mystical-cookbook.png"
-          alt="Firebook"
-          width={600}
-          height={400}
-        />
-        <div className="overlay-text">Firebook 🔥🔥</div>
-      </div>
+      {/* Login CTA */}
+      {!isAuthenticated && (
+        <div className="login-cta">
+          <p className="login-cta-text">
+            Log in or sign up to save recipes, track your streak, and earn flames!
+          </p>
+          <div className="login-cta-actions">
+            <Link href="/login" className="btn-primary" style={{ borderRadius: '8px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', height: '40px', padding: '0 18px', fontSize: '14px' }}>
+              Log in
+            </Link>
+            <Link href="/signup" className="btn-secondary" style={{ textDecoration: 'none' }}>
+              Sign up free
+            </Link>
+          </div>
+        </div>
+      )}
 
-      <div className="features">
-        <div className="feature">
-          <h2>Personalized Recipe Generation</h2>
-          <p>
-            Input the ingredients you have, and Firebook will craft a custom
-            recipe to make the best use of them, reducing food waste and
-            inspiring creativity in your cooking.
-          </p>
-        </div>
-        <div className="feature">
-          <h2>Dietary Customization</h2>
-          <p>
-            Whether you&apos;re vegan, gluten-free, or have other dietary
-            restrictions, Firebook adjusts recipes to meet your specific needs,
-            ensuring delicious meals that align with your lifestyle.
-          </p>
-        </div>
-        <div className="feature">
-          <h2>Step-by-Step Instructions</h2>
-          <p>
-            Each recipe comes with clear, easy-to-follow instructions, making
-            cooking accessible for both beginners and seasoned chefs.
-          </p>
-        </div>
-        <div className="feature">
-          <h2>Nutritional Information</h2>
-          <p>
-            Stay informed about the nutritional content of your meals with
-            detailed breakdowns provided for each recipe.
-          </p>
-        </div>
-      </div>
+      {/* Featured Recipes */}
+      <div style={{ marginTop: "32px" }}>
+        <h2 className="section-heading">
+          <span className="flame-accent">🔥</span> Featured Recipes
+        </h2>
 
-      <div className="subscribe-form">
-        <SubscribeForm />
+        {loadingFeatured ? (
+          <>
+            <div className="spinner" />
+            <p className="loading-text">Loading recipes…</p>
+          </>
+        ) : featured.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">🍽️</div>
+            <p className="empty-state-title">No recipes yet</p>
+          </div>
+        ) : (
+          <div className="recipe-grid">
+            {featured.map((recipe, i) => (
+              <RecipeCard key={recipe.id || i} recipe={recipe} index={i} />
+            ))}
+          </div>
+        )}
       </div>
-
-      <div className="footer">&copy; 2025 Firebook. All rights reserved.</div>
     </div>
   );
 }

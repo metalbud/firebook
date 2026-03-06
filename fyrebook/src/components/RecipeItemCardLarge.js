@@ -55,7 +55,7 @@ const RecipeItemCardLarge = ({ recipe, showSaveButton = true, onRemove }) => {
   const handleSaveRecipe = async () => {
     if (isSaved) return;
     try {
-      await addToSavedRecipes(recipe);
+      await addToSavedRecipes({ recipe_data: recipe });
       setIsSaved(true);
     } catch (error) {
       console.error("❌ Error saving recipe:", error);
@@ -109,7 +109,9 @@ const RecipeItemCardLarge = ({ recipe, showSaveButton = true, onRemove }) => {
           <TouchableOpacity
             style={[styles.saveButton, darkMode && styles.darkSaveButton]}
             onPress={handleSaveRecipe}
-          ></TouchableOpacity>
+          >
+            <Text style={styles.saveButtonText}>Save</Text>
+          </TouchableOpacity>
         )}
       </View>
     </View>
@@ -180,6 +182,11 @@ const styles = StyleSheet.create({
   },
   darkSaveButton: {
     backgroundColor: "#444",
+  },
+  saveButtonText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
   },
 });
 export default RecipeItemCardLarge;
