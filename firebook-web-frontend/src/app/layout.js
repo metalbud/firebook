@@ -3,6 +3,7 @@ import "./styles.css";
 import { geistSans, geistMono } from "../lib/fonts";
 import { AuthProvider } from "../contexts/AuthContext";
 import { DarkModeProvider } from "../contexts/DarkModeContext";
+import { UserProvider } from "../contexts/UserContext";
 import Header from "../components/Header";
 
 export const metadata = {
@@ -15,10 +16,12 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         <AuthProvider>
-          <DarkModeProvider>
-            <Header />
-            <div className="page-wrapper">{children}</div>
-          </DarkModeProvider>
+          <UserProvider>
+            <DarkModeProvider>
+              <Header />
+              <div className="page-wrapper">{children}</div>
+            </DarkModeProvider>
+          </UserProvider>
         </AuthProvider>
       </body>
     </html>
