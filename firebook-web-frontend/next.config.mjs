@@ -4,7 +4,6 @@
  * optional sharp dependency and to serve the existing static assets directly.
  */
 const nextConfig = {
-  output: 'standalone',
   images: {
     unoptimized: true,
   },
